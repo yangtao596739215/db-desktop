@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"db-desktop/backend/config"
 	"db-desktop/backend/database"
 	"db-desktop/backend/integration"
 	"db-desktop/backend/models"
@@ -102,15 +103,15 @@ func (s *AIService) SaveConfig() error {
 }
 
 // UpdateConfig updates AI configuration
-func (s *AIService) UpdateConfig(config integration.AIConfig) error {
-	aiClient := integration.NewAIClient(config)
-	return aiClient.UpdateConfig(config)
+func (s *AIService) UpdateConfig(aiConfig integration.AIConfig) error {
+	configManager := config.GetGlobalConfigManager()
+	return configManager.UpdateAIConfig(aiConfig)
 }
 
 // GetConfig returns the current AI configuration
 func (s *AIService) GetConfig() integration.AIConfig {
-	aiClient := integration.NewAIClient(integration.AIConfig{})
-	return aiClient.GetConfig()
+	configManager := config.GetGlobalConfigManager()
+	return configManager.GetAIConfig()
 }
 
 // SendMessageStreamWithCompleteResponse sends a message and returns CompleteResponse directly
@@ -156,20 +157,11 @@ func (s *AIService) SendHistoryToAI(conversationID string, callback func(*models
 		history = messages
 	}
 
-	// Check if API key is configured
-	aiClient := integration.NewAIClient(integration.AIConfig{})
-	// Load configuration from file
-	if err := aiClient.LoadConfig(); err != nil {
-		utils.Errorf("Failed to load AI config: %v", err)
-		callback(&models.MsgVo{
-			ConversationID: conversationID,
-			Type:           models.MsgTypeText,
-			Content:        "请先配置API Key和Base URL",
-		})
-		return nil
-	}
-	config := aiClient.GetConfig()
-	if config.APIKey == "" {
+	// 使用统一配置管理器获取AI配置
+	configManager := config.GetGlobalConfigManager()
+	aiConfig := configManager.GetAIConfig()
+	aiClient := integration.NewAIClient(aiConfig)
+	if aiConfig.APIKey == "" {
 		callback(&models.MsgVo{
 			ConversationID: conversationID,
 			Type:           models.MsgTypeText,

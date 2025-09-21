@@ -77,7 +77,7 @@ function Query({ type = 'mysql' }) {
   const [selectedTable, setSelectedTable] = useState('')
   
   // 分割线相关状态
-  const [queryPanelHeight, setQueryPanelHeight] = useState(300) // 查询面板固定高度（像素）
+  const [queryPanelHeight, setQueryPanelHeight] = useState(150) // 查询面板固定高度（像素）- 默认最小化
   const [isDragging, setIsDragging] = useState(false)
   const containerRef = useRef(null)
 
@@ -253,7 +253,7 @@ function Query({ type = 'mysql' }) {
 
   // 重置分割线高度
   const resetSplitter = () => {
-    setQueryPanelHeight(300) // 重置为 300px 固定高度
+    setQueryPanelHeight(150) // 重置为 150px 固定高度（最小化状态）
   }
 
   useEffect(() => {

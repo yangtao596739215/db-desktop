@@ -897,14 +897,6 @@ const AIAssistantFixed = () => {
             />
           </Form.Item>
           
-          <Form.Item
-            label="启用流式响应"
-            name="stream"
-            valuePropName="checked"
-            initialValue={true}
-          >
-            <Switch />
-          </Form.Item>
         </Form>
       </Modal>
 

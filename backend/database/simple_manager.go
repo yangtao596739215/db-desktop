@@ -3,13 +3,14 @@ package database
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
+
+	"db-desktop/backend/config"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"
@@ -75,32 +76,30 @@ func (s *SimpleDatabaseManager) LoadConnections() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// 创建配置目录
-	configDir := filepath.Dir(s.configFile)
-	if err := os.MkdirAll(configDir, 0755); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
+	// 使用统一配置管理器
+	configManager := config.GetGlobalConfigManager()
+	configConnections := configManager.GetConnections()
+
+	// 清空现有连接
+	s.connections = make(map[string]*ConnectionConfig)
+
+	// 加载连接，转换类型
+	for _, conn := range configConnections {
+		dbConn := &ConnectionConfig{
+			ID:       conn.ID,
+			Name:     conn.Name,
+			Type:     DatabaseType(conn.Type),
+			Host:     conn.Host,
+			Port:     conn.Port,
+			Username: conn.Username,
+			Password: conn.Password,
+			Database: conn.Database,
+			Status:   conn.Status,
+		}
+		s.connections[conn.ID] = dbConn
 	}
 
-	// 检查配置文件是否存在
-	if _, err := os.Stat(s.configFile); os.IsNotExist(err) {
-		return nil // 没有配置文件，从空连接开始
-	}
-
-	data, err := os.ReadFile(s.configFile)
-	if err != nil {
-		return fmt.Errorf("failed to read config file: %w", err)
-	}
-
-	var connections []*ConnectionConfig
-	if err := json.Unmarshal(data, &connections); err != nil {
-		return fmt.Errorf("failed to unmarshal connections: %w", err)
-	}
-
-	for _, conn := range connections {
-		s.connections[conn.ID] = conn
-	}
-
-	s.logger.Infof("Loaded %d connections from config file", len(connections))
+	s.logger.Infof("Loaded %d connections from unified config", len(configConnections))
 	return nil
 }
 
@@ -113,22 +112,30 @@ func (s *SimpleDatabaseManager) SaveConnections() error {
 	}
 	s.mu.RUnlock()
 
-	// 创建配置目录
-	configDir := filepath.Dir(s.configFile)
-	if err := os.MkdirAll(configDir, 0755); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
+	// 转换为config包的类型
+	configConnections := make([]*config.ConnectionConfig, 0, len(connections))
+	for _, conn := range connections {
+		configConn := &config.ConnectionConfig{
+			ID:       conn.ID,
+			Name:     conn.Name,
+			Type:     string(conn.Type),
+			Host:     conn.Host,
+			Port:     conn.Port,
+			Username: conn.Username,
+			Password: conn.Password,
+			Database: conn.Database,
+			Status:   conn.Status,
+		}
+		configConnections = append(configConnections, configConn)
 	}
 
-	data, err := json.MarshalIndent(connections, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal connections: %w", err)
+	// 使用统一配置管理器保存
+	configManager := config.GetGlobalConfigManager()
+	if err := configManager.SaveConnections(configConnections); err != nil {
+		return fmt.Errorf("failed to save connections: %w", err)
 	}
 
-	if err := os.WriteFile(s.configFile, data, 0644); err != nil {
-		return fmt.Errorf("failed to write config file: %w", err)
-	}
-
-	s.logger.Infof("Successfully saved %d connections to config file", len(connections))
+	s.logger.Infof("Saved %d connections to unified config", len(connections))
 	return nil
 }
 

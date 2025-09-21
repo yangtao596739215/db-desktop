@@ -20,8 +20,7 @@ export const useAIAssistantStore = create((set, get) => ({
   error: null,
   config: {
     apiKey: '',
-    temperature: 0.7,
-    stream: true
+    temperature: 0.7
   },
   // 工具确认相关状态
   pendingConfirmCards: [],
@@ -210,8 +209,7 @@ export const useAIAssistantStore = create((set, get) => ({
       // 设置默认配置
       const defaultConfig = {
         apiKey: '',
-        temperature: 0.7,
-        stream: true
+        temperature: 0.7
       }
       set({ config: defaultConfig })
     }

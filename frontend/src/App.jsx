@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react'
 import { Layout, Menu } from 'antd'
 import { 
   DatabaseOutlined, 
-  SettingOutlined, 
   ApiOutlined,
   CloudServerOutlined,
   HddOutlined,
@@ -11,7 +10,6 @@ import {
 } from '@ant-design/icons'
 import { useConnectionStore } from './stores/connection'
 import Query from './views/Query'
-import Settings from './views/Settings'
 import AIAssistantFixed from './views/AIAssistant_fixed'
 import QueryHistory from './views/QueryHistory'
 import './App.css'
@@ -53,11 +51,6 @@ function App() {
       icon: <RobotOutlined />,
       label: 'AI 助手',
     },
-    {
-      key: 'settings',
-      icon: <SettingOutlined />,
-      label: '设置',
-    },
   ]
 
   const handleMenuClick = ({ key }) => {
@@ -77,8 +70,6 @@ function App() {
         return <QueryHistory />
       case 'ai-assistant':
         return <AIAssistantFixed />
-      case 'settings':
-        return <Settings />
       default:
         return <Query type="mysql" />
     }
