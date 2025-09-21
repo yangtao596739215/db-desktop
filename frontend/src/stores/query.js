@@ -9,7 +9,7 @@ import {
   GetDatabaseInfo,
   FormatQuery,
   ValidateQuery
-} from '../wailsjs/go/main/App'
+} from '../wailsjs/go/app/App'
 
 export const useQueryStore = create((set, get) => ({
   // 状态 - 按数据库类型分组

@@ -20,10 +20,12 @@ import {
   EditOutlined, 
   BarChartOutlined, 
   InfoCircleOutlined,
-  DatabaseOutlined
+  DatabaseOutlined,
+  RobotOutlined
 } from '@ant-design/icons'
 import { useQueryStore } from '../stores/query'
 import { useConnectionStore } from '../stores/connection'
+import { useAIAssistantStore } from '../stores/aiAssistant'
 
 const { Title } = Typography
 const { Option } = Select
@@ -31,8 +33,10 @@ const { Option } = Select
 function Settings() {
   const { clearHistory, queryHistory } = useQueryStore()
   const { connections } = useConnectionStore()
+  const { config: aiConfig, loadConfig, updateConfig } = useAIAssistantStore()
   
   const [form] = Form.useForm()
+  const [aiForm] = Form.useForm()
   const [settings, setSettings] = useState({
     theme: 'auto',
     language: 'zh-CN',
@@ -78,6 +82,15 @@ function Settings() {
     }
   }
 
+  // 加载AI配置
+  const loadAIConfig = async () => {
+    try {
+      await loadConfig()
+    } catch (error) {
+      console.error('Failed to load AI config:', error)
+    }
+  }
+
   // 保存设置
   const handleSaveSettings = () => {
     try {
@@ -85,6 +98,17 @@ function Settings() {
       message.success('设置已保存')
     } catch (error) {
       message.error('保存设置失败')
+    }
+  }
+
+  // 保存AI配置
+  const handleSaveAIConfig = async () => {
+    try {
+      const values = await aiForm.validateFields()
+      await updateConfig(values)
+      message.success('AI配置已保存')
+    } catch (error) {
+      message.error('保存AI配置失败')
     }
   }
 
@@ -193,19 +217,75 @@ function Settings() {
 
   useEffect(() => {
     loadSettings()
-  }, [])
+    loadAIConfig()
+  }, []) // 空依赖数组，只在组件挂载时执行一次
+
+  // 监听aiConfig变化，更新表单
+  useEffect(() => {
+    if (aiConfig && Object.keys(aiConfig).length > 0) {
+      try {
+        aiForm.setFieldsValue(aiConfig)
+      } catch (error) {
+        console.error('Error setting form values:', error)
+      }
+    }
+  }, [aiConfig, aiForm])
 
   const handleFormChange = (changedValues) => {
     setSettings(prev => ({ ...prev, ...changedValues }))
   }
 
-  return (
-    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
-      <div style={{ marginBottom: '20px' }}>
-        <Title level={2}>设置</Title>
-      </div>
+  // 添加调试信息
+  console.log('Settings component render - aiConfig:', aiConfig)
+  console.log('Settings component render - settings:', settings)
+
+  // 暂时注释掉AI配置检查，先确保基本页面能显示
+  // if (!aiConfig) {
+  //   return (
+  //     <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
+  //       <div style={{ marginBottom: '20px' }}>
+  //         <Title level={2}>设置</Title>
+  //       </div>
+  //       <div style={{ textAlign: 'center', padding: '40px' }}>
+  //         <div>加载中...</div>
+  //       </div>
+  //     </div>
+  //   )
+  // }
+
+  try {
+    return (
+      <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
+        <div style={{ marginBottom: '20px' }}>
+          <Title level={2}>设置</Title>
+        </div>
 
       <Row gutter={20}>
+        <Col span={12}>
+          {/* AI配置 - 简化版本 */}
+          <Card 
+            title={
+              <Space>
+                <RobotOutlined />
+                <span>AI助手配置</span>
+              </Space>
+            }
+            style={{ marginBottom: '20px' }}
+          >
+            <div style={{ padding: '20px', textAlign: 'center' }}>
+              <div style={{ marginBottom: '16px' }}>
+                <Input.Password 
+                  placeholder="请输入千问API Key" 
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <Button type="primary" style={{ width: '100%' }}>
+                保存AI配置
+              </Button>
+            </div>
+          </Card>
+        </Col>
+        
         <Col span={12}>
           {/* 应用设置 */}
           <Card 
@@ -478,7 +558,23 @@ function Settings() {
         <Button type="primary" onClick={handleSaveSettings}>保存设置</Button>
       </div>
     </div>
-  )
+    )
+  } catch (error) {
+    console.error('Settings component error:', error)
+    return (
+      <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
+        <div style={{ marginBottom: '20px' }}>
+          <Title level={2}>设置</Title>
+        </div>
+        <div style={{ textAlign: 'center', padding: '40px', color: 'red' }}>
+          <div>设置页面加载出错：{error.message}</div>
+          <div style={{ marginTop: '20px', fontSize: '12px', color: '#666' }}>
+            请检查浏览器控制台获取详细错误信息
+          </div>
+        </div>
+      </div>
+    )
+  }
 }
 
 export default Settings

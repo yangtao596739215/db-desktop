@@ -244,3 +244,204 @@ export namespace database {
 
 }
 
+export namespace integration {
+	
+	export class AIConfig {
+	    apiKey: string;
+	    baseURL: string;
+	    temperature: number;
+	    stream: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new AIConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.apiKey = source["apiKey"];
+	        this.baseURL = source["baseURL"];
+	        this.temperature = source["temperature"];
+	        this.stream = source["stream"];
+	    }
+	}
+
+}
+
+export namespace models {
+	
+	export class Conversation {
+	    id: string;
+	    title: string;
+	    // Go type: time
+	    createdAt: any;
+	    // Go type: time
+	    updatedAt: any;
+	    messageCount: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Conversation(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.title = source["title"];
+	        this.createdAt = this.convertValues(source["createdAt"], null);
+	        this.updatedAt = this.convertValues(source["updatedAt"], null);
+	        this.messageCount = source["messageCount"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class MCPFunctionCall {
+	    name: string;
+	    arguments: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new MCPFunctionCall(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.arguments = source["arguments"];
+	    }
+	}
+	export class MCPToolCall {
+	    id: string;
+	    type: string;
+	    function: MCPFunctionCall;
+	
+	    static createFrom(source: any = {}) {
+	        return new MCPToolCall(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.type = source["type"];
+	        this.function = this.convertValues(source["function"], MCPFunctionCall);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Message {
+	    role: string;
+	    content?: string;
+	    tool_calls?: MCPToolCall[];
+	    tool_call_id?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Message(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.role = source["role"];
+	        this.content = source["content"];
+	        this.tool_calls = this.convertValues(source["tool_calls"], MCPToolCall);
+	        this.tool_call_id = source["tool_call_id"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class QueryHistory {
+	    id: number;
+	    query: string;
+	    executionTime: number;
+	    dbType: string;
+	    connectionId: string;
+	    connectionName: string;
+	    // Go type: time
+	    createdAt: any;
+	    success: boolean;
+	    error: string;
+	    resultRows: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new QueryHistory(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.query = source["query"];
+	        this.executionTime = source["executionTime"];
+	        this.dbType = source["dbType"];
+	        this.connectionId = source["connectionId"];
+	        this.connectionName = source["connectionName"];
+	        this.createdAt = this.convertValues(source["createdAt"], null);
+	        this.success = source["success"];
+	        this.error = source["error"];
+	        this.resultRows = source["resultRows"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+

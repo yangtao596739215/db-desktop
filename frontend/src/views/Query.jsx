@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { 
   Card, 
   Button, 
@@ -78,8 +78,6 @@ function Query({ type = 'mysql' }) {
   const [queryPanelHeight, setQueryPanelHeight] = useState(300) // 查询面板固定高度（像素）
   const [isDragging, setIsDragging] = useState(false)
   const containerRef = useRef(null)
-  const dragStartY = useRef(0)
-  const dragStartHeight = useRef(300)
 
   // 根据类型过滤连接
   const filteredConnections = connections.filter(conn => conn.type === type)
@@ -227,29 +225,21 @@ function Query({ type = 'mysql' }) {
     }
   }
 
-  // 分割线拖动处理
-  const handleMouseDown = (e) => {
+
+  // 拖拽处理函数
+  const handleMouseDown = useCallback((e) => {
     e.preventDefault()
-    e.stopPropagation()
     setIsDragging(true)
-    dragStartY.current = e.clientY
-    dragStartHeight.current = queryPanelHeight
+    
+    const startY = e.clientY
+    const startHeight = queryPanelHeight
     
     const handleMouseMove = (e) => {
-      if (!containerRef.current) return
-      
-      const containerHeight = containerRef.current.offsetHeight
-      const deltaY = e.clientY - dragStartY.current
-      const newHeight = dragStartHeight.current + deltaY
-      
-      // 限制查询区域高度在 200px 到 containerHeight - 200px 之间
-      const minHeight = 200
-      const maxHeight = containerHeight - 200
-      const constrainedHeight = Math.max(minHeight, Math.min(maxHeight, newHeight))
-      
-      setQueryPanelHeight(constrainedHeight)
+      const deltaY = e.clientY - startY
+      const newHeight = Math.max(200, Math.min(600, startHeight + deltaY))
+      setQueryPanelHeight(newHeight)
     }
-
+    
     const handleMouseUp = () => {
       setIsDragging(false)
       document.removeEventListener('mousemove', handleMouseMove)
@@ -258,7 +248,7 @@ function Query({ type = 'mysql' }) {
     
     document.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('mouseup', handleMouseUp)
-  }
+  }, [queryPanelHeight])
 
   // 重置分割线高度
   const resetSplitter = () => {

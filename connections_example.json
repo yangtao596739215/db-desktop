@@ -1,0 +1,41 @@
+[
+  {
+    "id": "mysql-1",
+    "name": "MySQL Local",
+    "type": "mysql",
+    "host": "localhost",
+    "port": 3306,
+    "username": "root",
+    "password": "password",
+    "database": "test",
+    "sslMode": "disable",
+    "timeout": 30,
+    "maxConns": 10
+  },
+  {
+    "id": "redis-1",
+    "name": "Redis Local",
+    "type": "redis",
+    "host": "localhost",
+    "port": 6379,
+    "username": "",
+    "password": "",
+    "database": "0",
+    "sslMode": "disable",
+    "timeout": 30,
+    "maxConns": 10
+  },
+  {
+    "id": "clickhouse-1",
+    "name": "ClickHouse Local",
+    "type": "clickhouse",
+    "host": "localhost",
+    "port": 9000,
+    "username": "default",
+    "password": "",
+    "database": "default",
+    "sslMode": "disable",
+    "timeout": 30,
+    "maxConns": 10
+  }
+]

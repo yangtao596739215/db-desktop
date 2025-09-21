@@ -5,11 +5,15 @@ import {
   SettingOutlined, 
   ApiOutlined,
   CloudServerOutlined,
-  HddOutlined
+  HddOutlined,
+  RobotOutlined,
+  HistoryOutlined
 } from '@ant-design/icons'
 import { useConnectionStore } from './stores/connection'
 import Query from './views/Query'
 import Settings from './views/Settings'
+import AIAssistantFixed from './views/AIAssistant_fixed'
+import QueryHistory from './views/QueryHistory'
 import './App.css'
 
 const { Sider, Content } = Layout
@@ -40,6 +44,16 @@ function App() {
       label: 'Redis',
     },
     {
+      key: 'query-history',
+      icon: <HistoryOutlined />,
+      label: '执行历史',
+    },
+    {
+      key: 'ai-assistant',
+      icon: <RobotOutlined />,
+      label: 'AI 助手',
+    },
+    {
       key: 'settings',
       icon: <SettingOutlined />,
       label: '设置',
@@ -59,6 +73,10 @@ function App() {
         return <Query type="clickhouse" />
       case 'redis':
         return <Query type="redis" />
+      case 'query-history':
+        return <QueryHistory />
+      case 'ai-assistant':
+        return <AIAssistantFixed />
       case 'settings':
         return <Settings />
       default:

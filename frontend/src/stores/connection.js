@@ -8,7 +8,7 @@ import {
   Connect,
   Disconnect,
   GetConnectionStatus
-} from '../wailsjs/go/main/App'
+} from '../wailsjs/go/app/App'
 
 export const useConnectionStore = create((set, get) => ({
   // 状态

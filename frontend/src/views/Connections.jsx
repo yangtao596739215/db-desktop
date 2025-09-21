@@ -61,7 +61,7 @@ function Connections({ type = null }) {
   const defaultPorts = {
     mysql: 3306,
     redis: 6379,
-    clickhouse: 8123
+    clickhouse: 9000
   }
 
   // 获取连接类型颜色
@@ -116,6 +116,8 @@ function Connections({ type = null }) {
     form.setFieldsValue({ port: defaultPorts[selectedType] })
     if (selectedType === 'redis') {
       form.setFieldsValue({ database: '' })
+    } else if (selectedType === 'clickhouse') {
+      form.setFieldsValue({ database: 'default' })
     }
   }
 
@@ -130,7 +132,8 @@ function Connections({ type = null }) {
     setEditingConnection(conn)
     form.setFieldsValue({
       ...conn,
-      sslMode: conn.sslMode || ''
+      sslMode: conn.sslMode || '',
+      timeout: conn.timeout || 30 // 如果timeout为0或undefined，设置为默认值30
     })
     setShowAddDialog(true)
   }
@@ -414,6 +417,7 @@ function Connections({ type = null }) {
             type: type || 'mysql',
             host: 'localhost',
             port: defaultPorts[type || 'mysql'],
+            database: type === 'clickhouse' ? 'default' : '',
             timeout: 30,
             maxConns: 10
           }}
@@ -462,7 +466,6 @@ function Connections({ type = null }) {
           <Form.Item
             label="用户名"
             name="username"
-            rules={[{ required: true, message: '请输入用户名' }]}
           >
             <Input placeholder="请输入用户名" />
           </Form.Item>
@@ -470,7 +473,6 @@ function Connections({ type = null }) {
           <Form.Item
             label="密码"
             name="password"
-            rules={[{ required: true, message: '请输入密码' }]}
           >
             <Input.Password placeholder="请输入密码" />
           </Form.Item>
