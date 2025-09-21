@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { 
   SendMessage,
+  SendMessageWithEvents,
   GetAIConfig,
   UpdateAIConfig,
   CreateConversation,
@@ -10,6 +11,7 @@ import {
   UpdateConversation,
   ConfirmToolCall
 } from '../wailsjs/go/app/App'
+import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime'
 
 export const useAIAssistantStore = create((set, get) => ({
   // 状态
@@ -28,6 +30,10 @@ export const useAIAssistantStore = create((set, get) => ({
   conversations: [],
   currentConversationId: null,
   conversationsLoading: false,
+  // 实时消息状态
+  currentStreamingMessage: '',
+  isStreaming: false,
+  eventListenersInitialized: false,
 
   // 添加消息
   addMessage: (message) => {
@@ -36,37 +42,144 @@ export const useAIAssistantStore = create((set, get) => ({
     }))
   },
 
-  // 发送消息（使用普通响应）
+  // 初始化事件监听器
+  initializeEventListeners: () => {
+    const { eventListenersInitialized } = get()
+    if (eventListenersInitialized) return
+
+    console.log('Initializing AI event listeners...')
+
+    // 监听AI消息块事件
+    EventsOn('ai-message-chunk', (msgVo) => {
+      console.log('Received ai-message-chunk event:', msgVo)
+      const { handleRealtimeMessage } = get()
+      handleRealtimeMessage(msgVo)
+    })
+
+    // 监听AI消息错误事件
+    EventsOn('ai-message-error', (msgVo) => {
+      console.log('Received ai-message-error event:', msgVo)
+      const { handleErrorMessage } = get()
+      handleErrorMessage(msgVo)
+    })
+
+    set({ eventListenersInitialized: true })
+  },
+
+  // 处理实时消息
+  handleRealtimeMessage: (msgVo) => {
+    console.log('Processing realtime message:', msgVo)
+    
+    switch (msgVo.type) {
+      case 'text':
+        // 文本消息 - 追加到当前流式消息
+        set(state => ({
+          currentStreamingMessage: state.currentStreamingMessage + msgVo.content,
+          isStreaming: true
+        }))
+        break
+      
+      case 'card':
+        // 卡片消息 - 一次性渲染
+        const cardParts = msgVo.content.split('|')
+        if (cardParts.length >= 3) {
+          const cardId = cardParts[0]
+          const toolCallId = cardParts[1]
+          const showContent = cardParts[2]
+          
+          // 添加到待确认卡片列表
+          set(state => ({
+            pendingConfirmCards: [...state.pendingConfirmCards, {
+              cardId,
+              toolCallId,
+              showContent
+            }]
+          }))
+        }
+        break
+      
+      case 'complete':
+        // 完成消息 - 将流式消息添加到消息列表
+        const { currentStreamingMessage } = get()
+        if (currentStreamingMessage.trim()) {
+          set(state => ({
+            messages: [...state.messages, {
+              role: 'assistant',
+              content: currentStreamingMessage,
+              timestamp: new Date()
+            }],
+            currentStreamingMessage: '',
+            isStreaming: false,
+            isLoading: false
+          }))
+        } else {
+          set({ isStreaming: false, isLoading: false })
+        }
+        break
+      
+      default:
+        console.warn('Unknown message type:', msgVo.type)
+    }
+  },
+
+  // 处理错误消息
+  handleErrorMessage: (msgVo) => {
+    console.log('Processing error message:', msgVo)
+    
+    set(state => ({
+      messages: [...state.messages, {
+        role: 'assistant',
+        content: msgVo.content || '发生了未知错误',
+        timestamp: new Date(),
+        isError: true
+      }],
+      currentStreamingMessage: '',
+      isStreaming: false,
+      isLoading: false,
+      error: msgVo.content
+    }))
+  },
+
+  // 清理事件监听器
+  cleanupEventListeners: () => {
+    console.log('Cleaning up AI event listeners...')
+    EventsOff('ai-message-chunk')
+    EventsOff('ai-message-error')
+    set({ eventListenersInitialized: false })
+  },
+
+  // 发送消息（使用事件流式响应）
   sendMessage: async (content) => {
     try {
-      set({ isLoading: true, error: null })
+      set({ 
+        isLoading: true, 
+        error: null, 
+        currentStreamingMessage: '', 
+        isStreaming: false 
+      })
       
       // 确保有会话ID，如果没有则先创建一个
-      let { currentConversationId } = get()
+      let { currentConversationId, initializeEventListeners } = get()
       if (!currentConversationId) {
         const conversation = await CreateConversation(content.substring(0, 20))
         currentConversationId = conversation.id
         set({ currentConversationId })
       }
       
-      // 使用普通方法发送消息
-      const response = await SendMessage(currentConversationId, content)
+      // 确保事件监听器已初始化
+      initializeEventListeners()
       
-      // 添加AI回复到消息列表
-      set(state => ({
-        messages: [...state.messages, {
-          role: 'assistant',
-          content: response.content || '抱歉，没有收到回复',
-          timestamp: new Date()
-        }]
-      }))
+      // 使用事件版本发送消息
+      await SendMessageWithEvents(currentConversationId, content)
       
-      set({ isLoading: false })
+      // 注意：不要在这里设置 isLoading: false，因为流式响应会在完成时设置
     } catch (err) {
       console.error('sendMessage error:', err)
       set({ 
         error: err.message || '发送消息失败',
-        isLoading: false 
+        isLoading: false,
+        isStreaming: false,
+        currentStreamingMessage: ''
       })
       
       // 添加错误消息
@@ -74,7 +187,8 @@ export const useAIAssistantStore = create((set, get) => ({
         messages: [...state.messages, {
           role: 'assistant',
           content: `抱歉，发生了错误：${err.message || '发送消息失败'}`,
-          timestamp: new Date()
+          timestamp: new Date(),
+          isError: true
         }]
       }))
     }

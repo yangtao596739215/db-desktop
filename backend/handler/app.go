@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // 自定义错误类型
@@ -482,7 +484,11 @@ func (a *App) SendMessageWithEvents(conversationID, message string) error {
 	// 创建一个事件回调函数，通过Wails事件系统发送MsgVo对象到前端
 	eventCallback := func(msgVo *models.MsgVo) {
 		// 通过Wails事件系统发送MsgVo对象到前端
-		// runtime.EventsEmit(a.ctx, "ai-message-chunk", msgVo)
+		if a.ctx != nil {
+			// 使用runtime包发送事件
+			utils.Infof("Sending MsgVo event to frontend: Type=%s, Content=%s", msgVo.Type, msgVo.Content)
+			runtime.EventsEmit(a.ctx, "ai-message-chunk", msgVo)
+		}
 		utils.Infof("Sent MsgVo event to frontend: Type=%s, Content=%s", msgVo.Type, msgVo.Content)
 	}
 
@@ -491,15 +497,16 @@ func (a *App) SendMessageWithEvents(conversationID, message string) error {
 	if err != nil {
 		utils.Errorf("AI service streaming error: %v", err)
 		// 发送错误事件到前端
-		// errorMsgVo := &models.MsgVo{
-		// 	ConversationID: conversationID,
-		// 	Type:           models.MsgTypeText,
-		// 	Content:        fmt.Sprintf("AI服务错误：%v", err),
-		// }
-		// runtime.EventsEmit(a.ctx, "ai-message-error", errorMsgVo)
+		if a.ctx != nil {
+			errorMsgVo := &models.MsgVo{
+				ConversationID: conversationID,
+				Type:           models.MsgTypeText,
+				Content:        fmt.Sprintf("AI服务错误：%v", err),
+			}
+			runtime.EventsEmit(a.ctx, "ai-message-error", errorMsgVo)
+		}
 		return err
 	}
-
 	return nil
 }
 

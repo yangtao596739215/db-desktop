@@ -223,8 +223,14 @@ func (s *AIService) SendHistoryToAI(conversationID string, callback func(*models
 	if len(completeResponse.ToolCalls) > 0 {
 		utils.Infof("Stream response contains MCP calls, processing tool calls")
 		s.handleToolCalls(completeResponse.ToolCalls, conversationID, callback)
+	} else {
+		// 如果没有工具调用，发送完成消息
+		callback(&models.MsgVo{
+			ConversationID: conversationID,
+			Type:           models.MsgTypeComplete,
+			Content:        "Stream complete",
+		})
 	}
-
 	return nil
 }
 

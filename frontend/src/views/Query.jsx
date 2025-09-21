@@ -41,7 +41,9 @@ function Query({ type = 'mysql' }) {
   const { 
     connections, 
     connectedConnections, 
-    connectToDatabase 
+    connectToDatabase,
+    autoSelectConnection,
+    loadConnections
   } = useConnectionStore()
   const { 
     getActiveConnection,
@@ -195,9 +197,8 @@ function Query({ type = 'mysql' }) {
       try {
         // 先建立连接
         await connectToDatabase(selectedConnection.id)
-        // 然后设置为活动连接
+        // 然后设置为活动连接（同时更新queryStore）
         setActiveConnection(selectedConnection)
-        handleLoadDatabases()
         setShowConnectionDialog(false)
         message.success('连接成功')
       } catch (error) {
@@ -258,7 +259,48 @@ function Query({ type = 'mysql' }) {
   useEffect(() => {
     // 设置当前数据库类型
     setCurrentType(type)
+    console.log(`Switched to ${type} page, current activeConnection:`, activeConnection)
   }, [type, setCurrentType])
+
+  // 初始化时加载连接并自动选择默认连接
+  useEffect(() => {
+    const initializeConnections = async () => {
+      try {
+        console.log(`Initializing ${type} page...`)
+        
+        // 加载连接列表
+        await loadConnections()
+        console.log('Connections loaded, checking for auto-selection...')
+        
+        // 短暂延迟确保连接状态已更新
+        setTimeout(() => {
+          console.log(`Checking auto-selection for ${type}:`)
+          console.log('Current activeConnection:', activeConnection)
+          
+          // 检查是否需要自动选择连接
+          const needAutoSelection = !activeConnection || activeConnection.type !== type
+          
+          if (needAutoSelection) {
+            console.log(`Need auto-selection for ${type} (reason: ${!activeConnection ? 'no connection' : 'type mismatch'})`)
+            const defaultConnection = autoSelectConnection(type)
+            if (defaultConnection) {
+              console.log(`Auto-selected ${type} connection:`, defaultConnection.name)
+              // 同时设置到queryStore中
+              setActiveConnection(defaultConnection)
+            } else {
+              console.log(`No connected ${type} database found for auto-selection`)
+            }
+          } else {
+            console.log('Active connection matches page type:', activeConnection.name, activeConnection.type)
+          }
+        }, 100)
+      } catch (error) {
+        console.error('Failed to initialize connections:', error)
+      }
+    }
+
+    initializeConnections()
+  }, [type]) // 只在type变化时执行
 
   useEffect(() => {
     // 如果有活动连接，加载数据库列表
@@ -272,10 +314,14 @@ function Query({ type = 'mysql' }) {
 
   const columns = queryResult?.columns?.map((column, index) => ({
     title: column,
-    dataIndex: index,
-    key: index,
-    width: 120,
-    ellipsis: true
+    dataIndex: `col_${index}`,
+    key: `col_${index}`,
+    width: 150,
+    ellipsis: true,
+    render: (text) => {
+      if (text === null || text === undefined) return <span style={{ color: '#999' }}>NULL</span>
+      return String(text)
+    }
   })) || []
   
   // 调试信息
@@ -673,12 +719,23 @@ function Query({ type = 'mysql' }) {
                       overflow: 'auto'
                     }}>
                       <Table 
-                        dataSource={queryResult.rows.map((row, index) => ({ ...row, key: index }))} 
+                        dataSource={queryResult.rows.map((row, rowIndex) => {
+                          const rowData = { key: rowIndex }
+                          row.forEach((cell, colIndex) => {
+                            rowData[`col_${colIndex}`] = cell
+                          })
+                          return rowData
+                        })} 
                         columns={columns}
                         bordered 
                         size="small"
                         scroll={{ y: 400 }}
-                        pagination={false}
+                        pagination={{
+                          pageSize: 100,
+                          showSizeChanger: true,
+                          showQuickJumper: true,
+                          showTotal: (total, range) => `显示 ${range[0]}-${range[1]} 条，共 ${total} 条`
+                        }}
                       />
                     </div>
                   )}

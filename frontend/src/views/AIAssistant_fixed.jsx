@@ -10,7 +10,14 @@ import {
   Divider,
   Modal,
   Switch,
-  InputNumber
+  InputNumber,
+  List,
+  Row,
+  Col,
+  Tooltip,
+  Popconfirm,
+  Empty,
+  Badge
 } from 'antd'
 import { 
   SendOutlined, 
@@ -18,7 +25,12 @@ import {
   RobotOutlined, 
   UserOutlined,
   ClearOutlined,
-  CopyOutlined
+  CopyOutlined,
+  PlusOutlined,
+  MessageOutlined,
+  DeleteOutlined,
+  EditOutlined,
+  ClockCircleOutlined
 } from '@ant-design/icons'
 import { useAIAssistantStore } from '../stores/aiAssistant'
 
@@ -64,6 +76,9 @@ const AIAssistantFixed = () => {
   const [form] = Form.useForm()
   const [messageForm] = Form.useForm()
   const [showConfigModal, setShowConfigModal] = useState(false)
+  const [showConversations, setShowConversations] = useState(true)
+  const [editingConversationId, setEditingConversationId] = useState(null)
+  const [editingTitle, setEditingTitle] = useState('')
   const messagesEndRef = useRef(null)
   
   const {
@@ -72,24 +87,47 @@ const AIAssistantFixed = () => {
     config,
     pendingConfirmCards,
     toolConfirmationLoading,
+    currentStreamingMessage,
+    isStreaming,
+    conversations,
+    currentConversationId,
+    conversationsLoading,
     addMessage,
     sendMessage,
     clearMessages,
     updateConfig,
     loadConfig,
-    confirmToolCall
+    confirmToolCall,
+    initializeEventListeners,
+    cleanupEventListeners,
+    loadConversations,
+    createConversation,
+    selectConversation,
+    deleteConversation,
+    updateConversationTitle
   } = useAIAssistantStore()
 
-  // 加载配置
+  // 加载配置和初始化事件监听器
   useEffect(() => {
     loadConfig()
-  }, [loadConfig])
-
+    initializeEventListeners()
+    loadConversations()
+    
+    // 清理函数
+    return () => {
+      cleanupEventListeners()
+    }
+  }, [loadConfig, initializeEventListeners, cleanupEventListeners, loadConversations])
 
   // 自动滚动到底部
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'end' 
+      })
+    }
+  }, [messages, currentStreamingMessage])
 
   // 发送消息
   const handleSendMessage = async () => {
@@ -138,11 +176,70 @@ const AIAssistantFixed = () => {
   const handleClearMessages = () => {
     Modal.confirm({
       title: '确认清空',
-      content: '确定要清空所有对话记录吗？',
+      content: '确定要清空当前会话的所有对话记录吗？',
       onOk: () => {
         clearMessages()
       }
     })
+  }
+
+  // 创建新会话
+  const handleCreateConversation = async () => {
+    try {
+      const title = `新对话 ${new Date().toLocaleString()}`
+      const conversation = await createConversation(title)
+      message.success('新会话创建成功')
+      await selectConversation(conversation.id)
+    } catch (error) {
+      console.error('Create conversation error:', error)
+      message.error('创建会话失败')
+    }
+  }
+
+  // 选择会话
+  const handleSelectConversation = async (conversationId) => {
+    try {
+      await selectConversation(conversationId)
+    } catch (error) {
+      console.error('Select conversation error:', error)
+      message.error('加载会话失败')
+    }
+  }
+
+  // 删除会话
+  const handleDeleteConversation = async (conversationId) => {
+    try {
+      await deleteConversation(conversationId)
+      message.success('会话删除成功')
+    } catch (error) {
+      console.error('Delete conversation error:', error)
+      message.error('删除会话失败')
+    }
+  }
+
+  // 编辑会话标题
+  const handleEditTitle = (conversationId, currentTitle) => {
+    setEditingConversationId(conversationId)
+    setEditingTitle(currentTitle)
+  }
+
+  // 保存会话标题
+  const handleSaveTitle = async (conversationId) => {
+    try {
+      await updateConversationTitle(conversationId, editingTitle)
+      setEditingConversationId(null)
+      setEditingTitle('')
+      message.success('标题更新成功')
+    } catch (error) {
+      console.error('Update title error:', error)
+      message.error('更新标题失败')
+    }
+  }
+
+  // 取消编辑标题
+  const handleCancelEdit = () => {
+    setEditingConversationId(null)
+    setEditingTitle('')
   }
 
   // 处理工具确认
@@ -211,15 +308,33 @@ const AIAssistantFixed = () => {
   )
 
   return (
-    <div style={{ padding: '24px', height: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ 
+      height: '100vh', 
+      display: 'flex', 
+      flexDirection: 'column',
+      padding: '24px'
+    }}>
       {/* 头部 */}
-      <Card style={{ marginBottom: '16px' }}>
+      <Card style={{ marginBottom: '16px', flexShrink: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <RobotOutlined style={{ fontSize: '24px', color: '#1890ff' }} />
-            <Title level={3} style={{ margin: 0 }}>AI 助手 (修复版)</Title>
+            <Title level={3} style={{ margin: 0 }}>AI 助手</Title>
+            {currentConversationId && (
+              <Badge 
+                count={conversations.find(c => c.id === currentConversationId)?.messageCount || 0}
+                style={{ backgroundColor: '#52c41a' }}
+              />
+            )}
           </div>
           <Space>
+            <Button 
+              icon={<MessageOutlined />} 
+              onClick={() => setShowConversations(!showConversations)}
+              type={showConversations ? 'primary' : 'default'}
+            >
+              {showConversations ? '隐藏会话' : '显示会话'}
+            </Button>
             <Button 
               icon={<SettingOutlined />} 
               onClick={() => setShowConfigModal(true)}
@@ -230,6 +345,7 @@ const AIAssistantFixed = () => {
               icon={<ClearOutlined />} 
               onClick={handleClearMessages}
               danger
+              disabled={!currentConversationId}
             >
               清空对话
             </Button>
@@ -237,218 +353,511 @@ const AIAssistantFixed = () => {
         </div>
       </Card>
 
-      {/* 对话区域 */}
-      <Card 
-        style={{ 
-          flex: 1, 
-          display: 'flex', 
-          flexDirection: 'column',
-          overflow: 'hidden'
-        }}
-        bodyStyle={{ 
-          padding: '16px', 
-          height: '100%', 
-          display: 'flex', 
-          flexDirection: 'column' 
-        }}
-      >
-        {/* 消息列表 */}
-        <div 
-          style={{ 
-            flex: 1, 
-            overflowY: 'auto', 
-            padding: '16px 0',
-            maxHeight: 'calc(100vh - 300px)'
-          }}
-        >
-          {messages.length === 0 ? (
-            <div style={{ 
-              textAlign: 'center', 
-              color: '#999', 
-              padding: '40px 0' 
-            }}>
-              <RobotOutlined style={{ fontSize: '48px', marginBottom: '16px' }} />
-              <div>开始与AI助手对话吧！</div>
-            </div>
-          ) : (
-            messages.map((msg, index) => {
-              // 如果是卡片消息，显示确认卡片
-              if (msg.role === 'card') {
-                // 从消息内容中解析卡片信息
-                const cardInfo = parseCardMessage(msg.content)
-                return (
-                  <div key={index} style={{ marginBottom: '16px' }}>
-                    <SimpleToolConfirmationCard
-                      toolCall={{
-                        toolCallID: cardInfo.toolCallID || 'unknown',
-                        function: cardInfo.function || 'unknown',
-                        arguments: cardInfo.arguments || {},
-                        message: msg.content
-                      }}
-                    />
-                  </div>
-                )
-              }
-              
-              // 普通消息
-              return (
-                <div key={index} style={{ marginBottom: '16px' }}>
-                  <div style={{ 
-                    display: 'flex', 
-                    alignItems: 'flex-start', 
-                    gap: '12px',
-                    flexDirection: msg.role === 'user' ? 'row-reverse' : 'row'
-                  }}>
-                    <div style={{
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: '50%',
-                      backgroundColor: msg.role === 'user' ? '#1890ff' : '#52c41a',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'white',
-                      flexShrink: 0
-                    }}>
-                      {msg.role === 'user' ? <UserOutlined /> : <RobotOutlined />}
-                    </div>
-                    <div style={{
-                      flex: 1,
-                      backgroundColor: msg.role === 'user' ? '#f0f8ff' : '#f6ffed',
-                      padding: '12px 16px',
-                      borderRadius: '8px',
-                      border: '1px solid #e8e8e8'
-                    }}>
-                      <div style={{ whiteSpace: 'pre-wrap', marginBottom: '8px' }}>
-                        {msg.content}
-                      </div>
-                      <div style={{ 
-                        fontSize: '12px', 
-                        color: '#999',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                      }}>
-                        <span>{msg.timestamp.toLocaleTimeString()}</span>
-                        {msg.role === 'assistant' && (
-                          <Button 
-                            type="text" 
-                            size="small" 
-                            icon={<CopyOutlined />}
-                            onClick={() => handleCopyMessage(msg.content)}
-                          />
-                        )}
-                      </div>
-                    </div>
-                  </div>
+      {/* 主内容区域 */}
+      <div style={{ 
+        flex: 1, 
+        display: 'flex', 
+        gap: '16px',
+        minHeight: 0
+      }}>
+        {/* 会话列表 */}
+        {showConversations && (
+          <div style={{ 
+            width: '300px', 
+            flexShrink: 0,
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
+            <Card 
+              title={
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>会话列表</span>
+                  <Button 
+                    type="primary" 
+                    size="small"
+                    icon={<PlusOutlined />}
+                    onClick={handleCreateConversation}
+                    loading={conversationsLoading}
+                  >
+                    新建
+                  </Button>
                 </div>
-              )
-            })
-          )}
-
-          {/* 待确认的工具调用 */}
-          {pendingConfirmCards && pendingConfirmCards.length > 0 && (
-            <div style={{ marginBottom: '16px' }}>
-              <div style={{ 
-                marginBottom: '8px',
-                padding: '8px 12px',
-                backgroundColor: '#fff7e6',
-                border: '1px solid #ffd591',
-                borderRadius: '6px',
-                fontSize: '14px',
-                color: '#d46b08'
-              }}>
-                <strong>⚠️ 需要确认的工具执行</strong>
-              </div>
-              {pendingConfirmCards.map((card) => (
-                <SimpleToolConfirmationCard
-                  key={card.cardId}
-                  toolCall={{
-                    toolCallID: card.toolCallId,
-                    function: 'unknown',
-                    arguments: {},
-                    message: card.showContent
-                  }}
-                />
-              ))}
-            </div>
-          )}
-
-          {isLoading && (
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '12px',
-              marginBottom: '16px'
-            }}>
-              <div style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '50%',
-                backgroundColor: '#52c41a',
+              }
+              style={{ 
+                height: '100%',
                 display: 'flex',
+                flexDirection: 'column'
+              }}
+              bodyStyle={{ 
+                padding: '0',
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden'
+              }}
+            >
+              <div 
+                className="conversation-list-container"
+                style={{ 
+                  flex: 1,
+                  overflowY: 'auto',
+                  padding: '12px'
+                }}
+              >
+              {conversationsLoading ? (
+                <div style={{ textAlign: 'center', padding: '20px' }}>
+                  <div>加载中...</div>
+                </div>
+              ) : conversations.length === 0 ? (
+                <Empty 
+                  description="暂无会话" 
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  style={{ marginTop: '40px' }}
+                >
+                  <Button type="primary" onClick={handleCreateConversation}>
+                    创建第一个会话
+                  </Button>
+                </Empty>
+              ) : (
+                <List
+                  dataSource={conversations}
+                  renderItem={(conversation) => (
+                    <List.Item
+                      style={{
+                        padding: '8px 12px',
+                        marginBottom: '8px',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        backgroundColor: currentConversationId === conversation.id ? '#e6f7ff' : 'transparent',
+                        border: currentConversationId === conversation.id ? '1px solid #1890ff' : '1px solid #f0f0f0',
+                        transition: 'all 0.3s'
+                      }}
+                      onClick={() => handleSelectConversation(conversation.id)}
+                      onMouseEnter={(e) => {
+                        if (currentConversationId !== conversation.id) {
+                          e.target.style.backgroundColor = '#f5f5f5'
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (currentConversationId !== conversation.id) {
+                          e.target.style.backgroundColor = 'transparent'
+                        }
+                      }}
+                    >
+                      <div style={{ width: '100%' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            {editingConversationId === conversation.id ? (
+                              <Input
+                                size="small"
+                                value={editingTitle}
+                                onChange={(e) => setEditingTitle(e.target.value)}
+                                onPressEnter={() => handleSaveTitle(conversation.id)}
+                                onBlur={() => handleSaveTitle(conversation.id)}
+                                autoFocus
+                                style={{ marginBottom: '4px' }}
+                              />
+                            ) : (
+                              <div
+                                style={{
+                                  fontWeight: currentConversationId === conversation.id ? 'bold' : 'normal',
+                                  fontSize: '14px',
+                                  marginBottom: '4px',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap'
+                                }}
+                                title={conversation.title}
+                              >
+                                {conversation.title}
+                              </div>
+                            )}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <Text type="secondary" style={{ fontSize: '12px' }}>
+                                <ClockCircleOutlined style={{ marginRight: '4px' }} />
+                                {new Date(conversation.updatedAt).toLocaleString()}
+                              </Text>
+                              <Badge 
+                                count={conversation.messageCount} 
+                                size="small"
+                                style={{ backgroundColor: '#f0f0f0', color: '#666' }}
+                              />
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: '4px', marginLeft: '8px' }}>
+                            <Tooltip title="编辑标题">
+                              <Button
+                                type="text"
+                                size="small"
+                                icon={<EditOutlined />}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleEditTitle(conversation.id, conversation.title)
+                                }}
+                                style={{ width: '24px', height: '24px', padding: 0 }}
+                              />
+                            </Tooltip>
+                            <Popconfirm
+                              title="确定删除这个会话吗？"
+                              description="删除后无法恢复"
+                              onConfirm={(e) => {
+                                e.stopPropagation()
+                                handleDeleteConversation(conversation.id)
+                              }}
+                              okText="删除"
+                              cancelText="取消"
+                              okType="danger"
+                            >
+                              <Button
+                                type="text"
+                                size="small"
+                                danger
+                                icon={<DeleteOutlined />}
+                                onClick={(e) => e.stopPropagation()}
+                                style={{ width: '24px', height: '24px', padding: 0 }}
+                              />
+                            </Popconfirm>
+                          </div>
+                        </div>
+                      </div>
+                    </List.Item>
+                  )}
+                />
+              )}
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* 对话区域 */}
+        <div style={{ 
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          minWidth: 0
+        }}>
+          <Card 
+            style={{ 
+              height: '100%',
+              display: 'flex', 
+              flexDirection: 'column'
+            }}
+            bodyStyle={{ 
+              padding: 0,
+              flex: 1, 
+              display: 'flex', 
+              flexDirection: 'column',
+              overflow: 'hidden'
+            }}
+          >
+            {!currentConversationId ? (
+              <div style={{ 
+                display: 'flex',
+                flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: 'white'
+                height: '100%',
+                textAlign: 'center',
+                color: '#999',
+                padding: '40px'
               }}>
-                <RobotOutlined />
+                <MessageOutlined style={{ fontSize: '64px', marginBottom: '16px', color: '#d9d9d9' }} />
+                <Title level={4} style={{ color: '#999', marginBottom: '8px' }}>
+                  选择一个会话开始对话
+                </Title>
+                <Text type="secondary">
+                  从左侧选择一个现有会话，或创建新会话开始与AI助手对话
+                </Text>
+                <Button 
+                  type="primary" 
+                  icon={<PlusOutlined />}
+                  onClick={handleCreateConversation}
+                  style={{ marginTop: '16px' }}
+                >
+                  创建新会话
+                </Button>
               </div>
-              <div style={{
-                backgroundColor: '#f6ffed',
-                padding: '12px 16px',
-                borderRadius: '8px',
-                border: '1px solid #e8e8e8'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{ 
-                    width: '16px', 
-                    height: '16px', 
-                    border: '2px solid #52c41a',
-                    borderTop: '2px solid transparent',
-                    borderRadius: '50%',
-                    animation: 'spin 1s linear infinite'
-                  }} />
-                  <span>AI正在思考中...</span>
+            ) : (
+              <>
+                {/* 消息列表 - 正常顺序显示，最新消息在底部，支持滑动 */}
+                <div 
+                  className="message-container"
+                  style={{ 
+                    flex: 1, 
+                    overflowY: 'auto', 
+                    padding: '16px',
+                    minHeight: 0,
+                    display: 'flex',
+                    flexDirection: 'column'
+                  }}
+                >
+                  {/* 显示消息 - 如果没有消息则显示欢迎界面 */}
+                  {messages.length === 0 && !isLoading && !isStreaming && (!pendingConfirmCards || pendingConfirmCards.length === 0) ? (
+                    <div style={{ 
+                      textAlign: 'center', 
+                      color: '#999', 
+                      padding: '40px 0'
+                    }}>
+                      <RobotOutlined style={{ fontSize: '48px', marginBottom: '16px' }} />
+                      <div>开始与AI助手对话吧！</div>
+                    </div>
+                  ) : (
+                    <>
+                      {/* 历史消息 - 正序显示 */}
+                      {messages.map((msg, index) => {
+                        // 如果是卡片消息，显示确认卡片
+                        if (msg.role === 'card') {
+                          const cardInfo = parseCardMessage(msg.content)
+                          return (
+                            <div key={index} style={{ marginBottom: '16px' }}>
+                              <SimpleToolConfirmationCard
+                                toolCall={{
+                                  toolCallID: cardInfo.toolCallID || 'unknown',
+                                  function: cardInfo.function || 'unknown',
+                                  arguments: cardInfo.arguments || {},
+                                  message: msg.content
+                                }}
+                              />
+                            </div>
+                          )
+                        }
+                        
+                        // 普通消息
+                        return (
+                          <div key={index} style={{ marginBottom: '16px' }}>
+                            <div style={{ 
+                              display: 'flex', 
+                              alignItems: 'flex-start', 
+                              gap: '12px',
+                              flexDirection: msg.role === 'user' ? 'row-reverse' : 'row'
+                            }}>
+                              <div style={{
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '50%',
+                                backgroundColor: msg.role === 'user' ? '#1890ff' : '#52c41a',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: 'white',
+                                flexShrink: 0
+                              }}>
+                                {msg.role === 'user' ? <UserOutlined /> : <RobotOutlined />}
+                              </div>
+                              <div style={{
+                                flex: 1,
+                                backgroundColor: msg.role === 'user' ? '#f0f8ff' : '#f6ffed',
+                                padding: '12px 16px',
+                                borderRadius: '8px',
+                                border: '1px solid #e8e8e8'
+                              }}>
+                                <div style={{ whiteSpace: 'pre-wrap', marginBottom: '8px' }}>
+                                  {msg.content}
+                                </div>
+                                <div style={{ 
+                                  fontSize: '12px', 
+                                  color: '#999',
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center'
+                                }}>
+                                  <span>{msg.timestamp?.toLocaleTimeString()}</span>
+                                  {msg.role === 'assistant' && (
+                                    <Button 
+                                      type="text" 
+                                      size="small" 
+                                      icon={<CopyOutlined />}
+                                      onClick={() => handleCopyMessage(msg.content)}
+                                    />
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+
+                      {/* 待确认的工具调用卡片 - 显示在消息后面 */}
+                      {pendingConfirmCards && pendingConfirmCards.length > 0 && (
+                        <div style={{ marginBottom: '16px' }}>
+                          <div style={{ 
+                            marginBottom: '8px',
+                            padding: '8px 12px',
+                            backgroundColor: '#fff7e6',
+                            border: '1px solid #ffd591',
+                            borderRadius: '6px',
+                            fontSize: '14px',
+                            color: '#d46b08'
+                          }}>
+                            <strong>⚠️ 需要确认的工具执行</strong>
+                          </div>
+                          {pendingConfirmCards.map((card) => (
+                            <SimpleToolConfirmationCard
+                              key={card.cardId}
+                              toolCall={{
+                                toolCallID: card.toolCallId,
+                                function: 'unknown',
+                                arguments: {},
+                                message: card.showContent
+                              }}
+                            />
+                          ))}
+                        </div>
+                      )}
+
+                      {/* 加载状态 - 显示在所有内容后面 */}
+                      {isLoading && !isStreaming && (
+                        <div style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '12px',
+                          marginBottom: '16px'
+                        }}>
+                          <div style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            backgroundColor: '#52c41a',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'white'
+                          }}>
+                            <RobotOutlined />
+                          </div>
+                          <div style={{
+                            backgroundColor: '#f6ffed',
+                            padding: '12px 16px',
+                            borderRadius: '8px',
+                            border: '1px solid #e8e8e8'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <div style={{ 
+                                width: '16px', 
+                                height: '16px', 
+                                border: '2px solid #52c41a',
+                                borderTop: '2px solid transparent',
+                                borderRadius: '50%',
+                                animation: 'spin 1s linear infinite'
+                              }} />
+                              <span>AI正在思考中...</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 流式消息 - 显示在最后 */}
+                      {isStreaming && currentStreamingMessage && (
+                        <div style={{ 
+                          display: 'flex', 
+                          alignItems: 'flex-start', 
+                          gap: '12px',
+                          marginBottom: '16px'
+                        }}>
+                          <div style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            backgroundColor: '#52c41a',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'white',
+                            flexShrink: 0
+                          }}>
+                            <RobotOutlined />
+                          </div>
+                          <div style={{
+                            flex: 1,
+                            backgroundColor: '#f6ffed',
+                            padding: '12px 16px',
+                            borderRadius: '8px',
+                            border: '1px solid #e8e8e8'
+                          }}>
+                            <div style={{ whiteSpace: 'pre-wrap', marginBottom: '8px' }}>
+                              {currentStreamingMessage}
+                              <span style={{ 
+                                display: 'inline-block',
+                                width: '8px',
+                                height: '16px',
+                                backgroundColor: '#52c41a',
+                                marginLeft: '2px',
+                                animation: 'blink 1s infinite'
+                              }} />
+                            </div>
+                            <div style={{ 
+                              fontSize: '12px', 
+                              color: '#999',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px'
+                            }}>
+                              <div style={{ 
+                                width: '12px', 
+                                height: '12px', 
+                                border: '2px solid #52c41a',
+                                borderTop: '2px solid transparent',
+                                borderRadius: '50%',
+                                animation: 'spin 1s linear infinite'
+                              }} />
+                              <span>正在接收消息...</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  
+                  {/* 滚动到底部的占位元素 */}
+                  <div ref={messagesEndRef} style={{ height: '1px' }} />
                 </div>
-              </div>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
+
+                {/* 输入区域 - 固定在底部 */}
+                <div style={{ 
+                  padding: '16px',
+                  borderTop: '1px solid #f0f0f0',
+                  backgroundColor: '#fafafa',
+                  flexShrink: 0,
+                  position: 'sticky',
+                  bottom: 0,
+                  zIndex: 1
+                }}>
+                  <Form form={messageForm} onFinish={handleSendMessage}>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <Form.Item 
+                        name="message" 
+                        style={{ flex: 1, margin: 0 }}
+                        rules={[{ required: true, message: '请输入消息' }]}
+                      >
+                        <TextArea
+                          placeholder="输入你的问题... (Ctrl+Enter发送)"
+                          autoSize={{ minRows: 1, maxRows: 4 }}
+                          onPressEnter={(e) => {
+                            if (e.ctrlKey) {
+                              e.preventDefault()
+                              handleSendMessage()
+                            }
+                          }}
+                          disabled={isLoading || !currentConversationId}
+                        />
+                      </Form.Item>
+                      <Button 
+                        type="primary" 
+                        icon={<SendOutlined />} 
+                        htmlType="submit"
+                        loading={isLoading}
+                        disabled={isLoading || !currentConversationId}
+                      >
+                        发送
+                      </Button>
+                    </div>
+                  </Form>
+                </div>
+              </>
+            )}
+          </Card>
         </div>
-
-        <Divider />
-
-        {/* 输入区域 */}
-        <Form form={messageForm} onFinish={handleSendMessage}>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <Form.Item 
-              name="message" 
-              style={{ flex: 1, margin: 0 }}
-              rules={[{ required: true, message: '请输入消息' }]}
-            >
-              <TextArea
-                placeholder="输入你的问题..."
-                autoSize={{ minRows: 1, maxRows: 4 }}
-                onPressEnter={(e) => {
-                  if (e.shiftKey) return
-                  e.preventDefault()
-                  handleSendMessage()
-                }}
-                disabled={isLoading}
-              />
-            </Form.Item>
-            <Button 
-              type="primary" 
-              icon={<SendOutlined />} 
-              htmlType="submit"
-              loading={isLoading}
-              disabled={isLoading}
-            >
-              发送
-            </Button>
-          </div>
-        </Form>
-      </Card>
+      </div>
 
       {/* 配置模态框 */}
       <Modal
@@ -503,6 +912,40 @@ const AIAssistantFixed = () => {
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
+        }
+        
+        @keyframes blink {
+          0%, 50% { opacity: 1; }
+          51%, 100% { opacity: 0; }
+        }
+        
+        /* 优化滚动条样式 */
+        .message-container::-webkit-scrollbar,
+        .conversation-list-container::-webkit-scrollbar {
+          width: 8px;
+        }
+        
+        .message-container::-webkit-scrollbar-track,
+        .conversation-list-container::-webkit-scrollbar-track {
+          background: #f1f1f1;
+          border-radius: 4px;
+        }
+        
+        .message-container::-webkit-scrollbar-thumb,
+        .conversation-list-container::-webkit-scrollbar-thumb {
+          background: #c1c1c1;
+          border-radius: 4px;
+        }
+        
+        .message-container::-webkit-scrollbar-thumb:hover,
+        .conversation-list-container::-webkit-scrollbar-thumb:hover {
+          background: #a8a8a8;
+        }
+        
+        /* 平滑滚动 */
+        .message-container,
+        .conversation-list-container {
+          scroll-behavior: smooth;
         }
       `}</style>
     </div>

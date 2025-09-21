@@ -45,6 +45,30 @@ export const useConnectionStore = create((set, get) => ({
     }
   },
 
+  // 自动选择默认连接
+  autoSelectConnection: (type) => {
+    const { connections } = get()
+    console.log(`Auto-selecting connection for ${type}:`)
+    console.log('All connections:', connections.map(c => ({ name: c.name, type: c.type, status: c.status })))
+    
+    const filteredConnections = connections.filter(conn => 
+      conn.type === type && conn.status === 'connected'
+    )
+    
+    console.log(`Filtered ${type} connections:`, filteredConnections.map(c => ({ name: c.name, status: c.status })))
+    
+    if (filteredConnections.length > 0) {
+      // 选择第一个已连接的连接作为默认连接
+      const defaultConnection = filteredConnections[0]
+      console.log(`Auto-selecting default ${type} connection:`, defaultConnection.name)
+      set({ activeConnection: defaultConnection })
+      return defaultConnection
+    }
+    
+    console.log(`No connected ${type} connections found`)
+    return null
+  },
+
   // 添加连接
   addConnection: async (config) => {
     console.log('addConnection called with config:', config)

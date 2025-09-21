@@ -44,8 +44,9 @@ type QueryHistory struct {
 type MsgType string
 
 const (
-	MsgTypeText MsgType = "text"
-	MsgTypeCard MsgType = "card"
+	MsgTypeText     MsgType = "text"
+	MsgTypeCard     MsgType = "card"
+	MsgTypeComplete MsgType = "complete"
 )
 
 type MsgVo struct {
